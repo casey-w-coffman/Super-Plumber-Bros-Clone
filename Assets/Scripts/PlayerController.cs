@@ -70,7 +70,7 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
-        //ground check — replaces collision-event based isGrounded
+        //ground check replaces collision-event based isGrounded
         isGrounded = Physics2D.OverlapCircle((Vector2)transform.position + groundCheckOffset, groundCheckRadius, groundLayer);
 
         //fine tuned movement (turning, acceleration)

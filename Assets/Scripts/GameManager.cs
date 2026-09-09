@@ -15,6 +15,7 @@ public class GameManager : MonoBehaviour
     public TMP_Text TimeKeeper;
     public int maxTime = 50 * 300;
     int time = 0;
+    public int TimeTicks => time;
 
     //set up world number
     public TMP_Text WorldNumber;
