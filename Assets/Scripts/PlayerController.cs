@@ -15,10 +15,17 @@ public class PlayerController : MonoBehaviour
     public float friction = 20f;  //decel
     public float maxSpeed = 8f;
 
+    //ground check
+    public LayerMask groundLayer;
+    public Vector2 groundCheckOffset = new Vector2(0f, -0.55f); // just below collider bottom
+    public float groundCheckRadius = 0.05f; // smaller — avoid overlapping tile above ground
+
     //set different move states
     public enum MoveState { Idle , Running , Turning }
 
-    float speed;
+    public Sprite normalSprite;
+    public Sprite jumpingSprite;
+
     MoveState moveState;
 
     Rigidbody2D rb;
@@ -26,6 +33,7 @@ public class PlayerController : MonoBehaviour
     bool isGrounded;
     float moveX;
     bool jumpQueued;
+    float speed;
 
     SpriteRenderer spriteRenderer;
 
@@ -34,6 +42,12 @@ public class PlayerController : MonoBehaviour
         spriteRenderer = GetComponent<SpriteRenderer>();
         rb = GetComponent<Rigidbody2D>();
         rb.gravityScale = 0f;
+
+        // Zero-friction material so physics solver doesn't fight our manual velocity control
+        PhysicsMaterial2D noFriction = new PhysicsMaterial2D("NoFriction");
+        noFriction.friction = 0f;
+        noFriction.bounciness = 0f;
+        rb.sharedMaterial = noFriction;
     }
 
     void Update()
@@ -50,62 +64,55 @@ public class PlayerController : MonoBehaviour
         //flip the sprite depending on x velocity
         if (speed > 0f) spriteRenderer.flipX = false;
         else if (speed < 0f) spriteRenderer.flipX = true;
+
+        spriteRenderer.sprite = isGrounded ? normalSprite : jumpingSprite;
     }
 
     void FixedUpdate()
     {
-    //fine tuned movement (turning, acceleration)
-    if (moveX != 0f)
-    {
-        //check if reversing based on velocity
-        bool reversing = speed != 0f && Mathf.Sign(moveX) != Mathf.Sign(speed);
-        //set move state based on if reversing or not
-        moveState = reversing ? MoveState.Turning : MoveState.Running;
+        //ground check — replaces collision-event based isGrounded
+        isGrounded = Physics2D.OverlapCircle((Vector2)transform.position + groundCheckOffset, groundCheckRadius, groundLayer);
 
-        //determine rate to use if turning or not from above
-        float rate = reversing ? turnAccel : accel;
-        //set max speed
-        speed = Mathf.Clamp(speed + moveX * rate * Time.fixedDeltaTime, -maxSpeed, maxSpeed);
-    }
-    else
-    {
-        moveState = MoveState.Idle;
-        speed = Mathf.MoveTowards(speed, 0f, friction * Time.fixedDeltaTime);
-    }
+        //fine tuned movement (turning, acceleration)
+        if (moveX != 0f)
+        {
+            //check if reversing based on velocity
+            bool reversing = speed != 0f && Mathf.Sign(moveX) != Mathf.Sign(speed);
+            //set move state based on if reversing or not
+            moveState = reversing ? MoveState.Turning : MoveState.Running;
 
-    //basic movement (running, jumping, gravity)
-    //if grounded and not moving upward, set velocityY to zero
-    if (isGrounded && velocityY < 0) velocityY = 0f;
+            //determine rate to use if turning or not from above
+            float rate = reversing ? turnAccel : accel;
+            //set max speed
+            speed = Mathf.Clamp(speed + moveX * rate * Time.fixedDeltaTime, -maxSpeed, maxSpeed);
+        }
+        else
+        {
+            moveState = MoveState.Idle;
+            speed = Mathf.MoveTowards(speed, 0f, friction * Time.fixedDeltaTime);
+        }
 
-    //if grounded and wKey pressed, jump
-    if (isGrounded && jumpQueued)
-        velocityY = jumpForce;
+        //basic movement (running, jumping, gravity)
+        //if grounded and not moving upward, set velocityY to zero
+        if (isGrounded && velocityY < 0) velocityY = 0f;
 
-    //set jumpQ'd to false so can't double jump
-    jumpQueued = false;
+        //if grounded and wKey pressed, jump
+        if (isGrounded && jumpQueued)
+            velocityY = jumpForce;
 
-    bool holdingJump = Keyboard.current.wKey.isPressed;
+        //set jumpQ'd to false so can't double jump
+        jumpQueued = false;
 
-    //use low jump gravity if not holding wKey, gravity if else
-    float currentGravity = (velocityY > 0 && !holdingJump)
-        ? gravity * lowJumpGravityMultiplier
-        : gravity;
+        bool holdingJump = Keyboard.current.wKey.isPressed;
 
-    //decrease velocityY by gravity (y=1/x)
-    velocityY += currentGravity * Time.fixedDeltaTime;
+        //use low jump gravity if not holding wKey, gravity if else
+        float currentGravity = (velocityY > 0 && !holdingJump)
+            ? gravity * lowJumpGravityMultiplier
+            : gravity;
 
-    rb.linearVelocity = new Vector2(speed, velocityY);
-    }     
+        //decrease velocityY by gravity (y=1/x)
+        velocityY += currentGravity * Time.fixedDeltaTime;
 
-    //checks if grounded
-    void OnCollisionEnter2D(Collision2D col)
-    {
-        if (col.contacts[0].normal.y > 0.5f) isGrounded = true;
-    }
-
-    //activated on jump
-    void OnCollisionExit2D(Collision2D col)
-    {
-        isGrounded = false;
+        rb.linearVelocity = new Vector2(speed, velocityY);
     }
 }
